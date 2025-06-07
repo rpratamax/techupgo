@@ -1,0 +1,90 @@
+How to set up a dedicated Blockly Games server from scratch.
+
+1. Provision a Linux server.  This document will assume an Ubuntu distro,
+but any system will do.
+
+It is recommended to have separate drives (or partitions) for user data
+and web logs.  This way if they fill up, they don't affect the system.
+For this document we'll assume two drives mounted at these locations:
+  /bg-data
+  /bg-logs
+
+2. Use a Bcrypt generator to encrypt the admin password.
+e.g. https://bcrypt-generator.com/
+Use this encrypted password in the 'XXXXXXX...' below.
+
+3. SSH to the server.  Issue the following commands:
+> sudo apt-get update
+> sudo apt-get upgrade
+> sudo apt-get install make
+> sudo apt-get install git
+> sudo apt-get install unzip
+> sudo apt-get install default-jre
+> sudo apt-get install nginx
+> sudo apt-get install fcgiwrap
+> sudo ln -s /usr/bin/python3 /usr/bin/python
+
+> sudo adduser bg-user
+> sudo chgrp bg-user /bg-data
+> sudo chown bg-user /bg-data
+> sudo chgrp bg-user /bg-logs
+> sudo chown bg-user /bg-logs
+
+> sudo su - bg-user
+>   echo 'admin:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' >> .htpasswd
+>   history -c
+>   chmod o+rx .
+>   chmod o-r .htpasswd
+>   touch /bg-logs/access.log /bg-logs/error.log /bg-logs/javascript.log
+>   chmod g+w /bg-logs/*.log
+>   mkdir -p /bg-data/{maze,bird,turtle,movie,music,pond-tutor,pond-duck}/storage
+>   mkdir -p /bg-data/{turtle,movie,music}/gallery
+>   git clone -b main https://github.com/NeilFraser/blockly-games.git
+>   cd blockly-games
+>   make
+>   make deploy
+>   exit
+> sudo chgrp www-data /home/bg-user/.htpasswd
+> sudo chown www-data /bg-logs/*.log
+> sudo chown -R www-data /bg-data/
+> sudo rm /etc/nginx/sites-enabled/default
+> sudo cp ~bg-user/blockly-games/server/blocklygames.conf /etc/nginx/sites-enabled/
+> sudo nginx -s reload
+
+Setting up AWStats
+> wget https://prdownloads.sourceforge.net/awstats/awstats-7.9.tar.gz
+> gunzip awstats-7.9.tar.gz
+> tar -xvf awstats-7.9.tar
+> rm awstats-7.9.tar
+> sudo mv awstats-7.9/ /usr/local/awstats
+> cd /usr/local/awstats/tools
+> ./awstats_configure.pl
+>   Config file path: none
+>   New profile: Yes
+>   Name: blockly.games
+>   Config file: [Enter]
+> pico /etc/awstats/awstats.blockly.games.conf
+>   set log path to /home/bg-user/logs/access.log
+> sudo chown bg-user /etc/awstats/awstats.blockly.games.conf
+> sudo chown -R bg-user /var/lib/awstats
+
+First execution of AWStats, then add it to daily crontab
+> sudo su - bg-user
+>   /usr/lib/cgi-bin/awstats.pl -config=blockly.games
+>   echo "0 2 * * * /usr/lib/cgi-bin/awstats.pl -config=blockly.games" >> crontab.txt
+>   crontab crontab.txt
+> exit
+
+Routine maintenance (suggest monthly)
+
+SSH to the server.  Issue the following commands:
+> sudo apt-get update
+> sudo apt-get upgrade
+> sudo su - bg-user
+>   cd blockly-games
+>   git pull
+>   make
+>   make deploy
+>   exit
+> sudo cp ~bg-user/blockly-games/server/blocklygames.conf /etc/nginx/sites-enabled/
+> sudo nginx -s reload
